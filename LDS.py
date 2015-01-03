@@ -15,8 +15,8 @@ import math
 import pyfits
 import numpy as np
 import cv2
-from SimpleCV import *
-import cv2.cv as cv
+#from SimpleCV import *
+#import cv2.cv as cv
 import subprocess
 import glob
 import pygtk
@@ -24,15 +24,26 @@ import gtk
 import random
 import Image
 import ImageDraw
-from skimage import data
-from skimage.feature import blob_dog, blob_log, blob_doh
+#from skimage import data
+#from skimage.feature import blob_dog, blob_log, blob_doh
 from math import sqrt
-from skimage.color import rgb2gray
-from skimage import exposure
-from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
+#from skimage.color import rgb2gray
+#from skimage import exposure
+#from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
 import datetime
 
 
+#
+#
+#   sudo apt-get install python-matplotlib
+#   sudo apt-get install python-scipy
+#   sudo apt-get install python-pyfits
+#   sudo apt-get install python-opencv
+#   sudo apt-get install dcraw
+#
+#
+#
+#
 
 
 
@@ -106,6 +117,11 @@ class Aligmen(gtk.Window):
         self.toolbar_item09.set_stock_id(gtk.STOCK_PRINT)
         #self.toolbar_item09.connect("clicked", self.MakeSnap,2)
         self.toolbar.insert(self.toolbar_item09,8)
+
+        self.toolbar_item10 = gtk.ToolButton("darkframe")
+        self.toolbar_item10.set_stock_id(gtk.STOCK_EXECUTE)
+        self.toolbar_item10.connect("clicked", self.DFMasterMean)
+        self.toolbar.insert(self.toolbar_item10,9)
         
         adjV = gtk.Adjustment(1, 1, 120, 1, 1, 0)
         adjH = gtk.Adjustment(1, 1, 120, 1, 1, 0)
@@ -135,13 +151,14 @@ class Aligmen(gtk.Window):
             if len(self.AligmenPositions) != len(self.raw_files):
                 print "rozdílná délka:", len(self.AligmenPositions), len(self.raw_files)
                 # TODO: resize array
+                self.AligmenPositions.resize((len(self.raw_files),3,2))
         else:
-            self.AligmenPositions[self.IMGB][self.ClickNum]=[event.x, event.y]
+            self.AligmenPositions=np.zeros((len(self.raw_files),3,2), dtype=numpy.uint16)
 
 
         self.show_all()
 
-    def StackSum(self):
+    def StackMean(self):
         print "Normální sčítání"
 
         image = cv2.imread(self.raw_files[0], cv2.IMREAD_UNCHANGED)
@@ -197,12 +214,42 @@ class Aligmen(gtk.Window):
         print "ukládání posledního obr"
         plt.show()
 
+
+    def DFMasterMean(self, widget=None):
+        DF_files = sorted(glob.glob(root+"/LDS_data/DarkFrames/*.CR2"))
+        i = 0
+        for DF in DF_files:
+            i = i+1
+            os.popen("dcraw -6 -c -W -t 0 "+DF+" > "+root+"/LDS_data/tmp/df_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
+            print "prevod souboru:", i, " z ", len(DF_files)," -- ", DF
+        DF_files = sorted(glob.glob(root+"/LDS_data/tmp/df_*.ppm"))
+
+        image = cv2.imread(DF_files[0], cv2.IMREAD_UNCHANGED)
+        image = image.astype(numpy.uint16)
+        image = cv2.addWeighted(image, 0, image, 0, 0)
+        rows, cols, ch = image.shape
+        
+        for rawIndex in range(0,len(DF_files)-1):
+            print "počítá se obr:", rawIndex, " z ", len(DF_files)-1, "což je:", DF_files[rawIndex]
+            image2 = cv2.imread(DF_files[rawIndex], cv2.IMREAD_UNCHANGED)
+            image2 = image2.astype(numpy.uint16)
+            image = cv2.addWeighted(image,1,image2, (math.ceil(1.00/(len(DF_files)-1.00) * 100.00) / 100.00) ,0)
+
+        image = image.astype(numpy.uint16)
+        cv2.imwrite(root+"/LDS_data/tmp/df_master.ppm", image, cv2.CV_IMWRITE_PXM_BINARY)
+        plt.show()
+
+
+
     def StackMedian(self):
         print "Median Stacking High memory"
 
         image = cv2.imread(self.raw_files[0], cv2.IMREAD_UNCHANGED)
         image = image.astype(numpy.uint16)
         image = cv2.addWeighted(image, 0, image, 0, 0)
+
+        imageDC = cv2.imread(root+"/LDS_data/tmp/df_master.ppm", cv2.IMREAD_UNCHANGED)
+        imageDC = image.astype(numpy.uint16)
         print image.shape, image.dtype
         rows, cols, ch = image.shape
         data = np.memmap(self.root+"/LDS_data/tmp/mem.map", dtype='uint16', mode='w+', shape=(len(self.raw_files),rows, cols, ch))
@@ -214,6 +261,7 @@ class Aligmen(gtk.Window):
             print "Získává se obr:", rawIndex, "což je:", self.raw_files[rawIndex]
             image2 = cv2.imread(self.raw_files[rawIndex], cv2.IMREAD_UNCHANGED)
             image2 = image2.astype(numpy.uint16)
+            image2 = cv2.subtract(image2, imageDC)
             M = cv2.getAffineTransform(self.AligmenPositions[rawIndex],self.AligmenPositions[0])
             image2 = cv2.warpAffine(image2,M,(cols,rows))
             #image = np.concatenate((image,image2))
@@ -254,7 +302,8 @@ class Aligmen(gtk.Window):
 
     def ProcesChoose(self, widget):
         np.save(self.root+"/LDS_data/tmp/AligmenPositions.npy",self.AligmenPositions)
-        #self.StackSum()
+        #self.DFMasterMean()
+        #self.StackMean()
         self.StackMedian()
 
 
@@ -340,8 +389,6 @@ class Aligmen(gtk.Window):
 
 
 
-
-
     def SetImageA(self, pathToppm):
         img = cv2.imread(pathToppm)
         self.imageA.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8))
@@ -361,20 +408,18 @@ if __name__ == "__main__":
     i=0
     for raw in raw_files:
         i = i+1
-        #os.popen("dcraw -6 -c -W "+raw+" > "+root+"/LDS_data/tmp/si_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
+        #os.popen("dcraw -6 -c -W -t 0 "+raw+" > "+root+"/LDS_data/tmp/si_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
     Okno = Aligmen()
     Okno.root=root
     raw_files = sorted(glob.glob(root+"/LDS_data/tmp/si_*.ppm"))
     Okno.raw_files = raw_files
     Okno.spust()
     #Okno.AligmenPositions=np.zeros((len(raw_files),3,2), dtype=numpy.float32)
-    Okno.SetImageA(str(raw_files[0]))
+    Okno.SetImageA(raw_files[0])
     Okno.SetImageB(raw_files[0])
     Okno.IMGB=0
     
     Okno.done()
-
-
 
 
 
