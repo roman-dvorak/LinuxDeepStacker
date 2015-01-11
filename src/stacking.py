@@ -29,17 +29,18 @@ import datetime
 
 
 
-class Stacking(object):
+class stacking(object):
     """docstring for Stacking"""
-    def __init__(self, arg):
-        super(Stacking, self).__init__()
-        self.arg = arg
+    def __init__(self):
+        print "Uspesne importováno"
+        #super(Stacking, self).__init__()
+        #self.arg = arg
 
     def setDataPath(self, root):
         self.root = root
 
     def setLightFrames(self, LightFrames):
-        self.LightFrames = LF
+        self.LightFrames = LightFrames
 
     def setDarkFrames(self, DarkFrames):
         self.DarkFrames = DarkFrames

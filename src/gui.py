@@ -33,6 +33,7 @@ from math import sqrt
 #from skimage.restoration import denoise_tv_chambolle, denoise_bilateral
 import datetime
 import stacking
+import rawpy
 
 
 #
@@ -41,9 +42,10 @@ import stacking
 #   sudo apt-get install python-scipy
 #   sudo apt-get install python-pyfits
 #   sudo apt-get install python-opencv
-#   sudo apt-get install dcraw
-#
-#
+#   sudo apt-get install python-pip
+#   ##sudo apt-get install dcraw##
+#   sudo apt-get install libraw-dev
+#   sudo pip install rawpy
 #
 #
 
@@ -64,6 +66,7 @@ class Aligmen(gtk.Window):
         self.set_size_request(450, gtk.ICON_SIZE_MENU+500+gtk.ICON_SIZE_MENU)
         self.kostra = gtk.VBox(homogeneous=False, spacing=2)
         self.add(self.kostra)
+        self.wievScale = 100
         
 
         self.toolbar = gtk.Toolbar()
@@ -74,6 +77,11 @@ class Aligmen(gtk.Window):
 
     def spust(self):
         play = False
+
+        self.statusbar = gtk.Statusbar()
+        self.kostra.pack_end(self.statusbar, False, False, 0)
+        context_id = self.statusbar.get_context_id("ident")
+        self.statusbar.push(context_id, "1called Write")
 
         self.toolbar_item01 = gtk.ToolButton("Quit")
         self.toolbar_item01.set_stock_id(gtk.STOCK_QUIT)
@@ -105,7 +113,7 @@ class Aligmen(gtk.Window):
         self.toolbar_item06.connect("clicked", self.ChangeIMG)
         self.toolbar.insert(self.toolbar_item06,5)
 
-        self.toolbar_item07 = gtk.ToolButton("CelýObr")
+        self.toolbar_item07 = gtk.ToolButton("CelyObr")
         self.toolbar_item07.set_stock_id(gtk.STOCK_ZOOM_FIT)
         self.toolbar_item07.connect("clicked", self.ChangeIMG)
         self.toolbar.insert(self.toolbar_item07,6)
@@ -124,12 +132,17 @@ class Aligmen(gtk.Window):
         self.toolbar_item10.set_stock_id(gtk.STOCK_EXECUTE)
         self.toolbar_item10.connect("clicked", self.DFMasterMean)
         self.toolbar.insert(self.toolbar_item10,9)
+
+        self.toolbar_item11 = gtk.ToolButton("darkframe")
+        self.toolbar_item11.set_stock_id(gtk.STOCK_PREFERENCES)
+        self.toolbar_item11.connect("clicked", self.Setting)
+        self.toolbar.insert(self.toolbar_item11,10)
         
         adjV = gtk.Adjustment(1, 1, 120, 1, 1, 0)
         adjH = gtk.Adjustment(1, 1, 120, 1, 1, 0)
 
         self.IMGkostra = gtk.HBox()
-        self.kostra.pack_end(self.IMGkostra, True, True,10)
+        self.kostra.pack_end(self.IMGkostra, True, True,0)
         self.scrollImgA = gtk.ScrolledWindow(adjH, adjV)
         self.IMGkostra.pack_start(self.scrollImgA, True, True)
         self.eventboxA = gtk.EventBox()
@@ -157,8 +170,15 @@ class Aligmen(gtk.Window):
         else:
             self.AligmenPositions=np.zeros((len(self.raw_files),3,2), dtype=numpy.float32)
 
-
         self.show_all()
+
+
+    def Setting(self, widget):
+        self.setWindow = gtk.Window()
+        self.setWindow.set_position(gtk.WIN_POS_CENTER)
+        self.setWindow.set_size_request(400, 200)
+        self.setWindow.set_title("Setting")
+        self.setWindow.show()
 
     def StackMean(self):
         print "Normální sčítání"
@@ -171,46 +191,20 @@ class Aligmen(gtk.Window):
         rows, cols, ch = image.shape
         
         for rawIndex in range(0,len(self.raw_files)):
-            print "počítá se obr:", rawIndex, "což je:", self.raw_files[rawIndex]
             image2 = cv2.imread(self.raw_files[rawIndex], cv2.IMREAD_UNCHANGED)
             image2 = image2.astype(numpy.uint16)
 
-            sb = np.zeros((image2.shape[1], image2.shape[0]), numpy.uint16)
-            sg = np.zeros((image2.shape[1], image2.shape[0]), numpy.uint16)
-            sr = np.zeros((image2.shape[1], image2.shape[0]), numpy.uint16)
-            (sb, sg, sr) = cv2.split(image2)
-            #sb = cv2.equalizeHist(sb)
-            #sg = cv2.equalizeHist(sg)
-            #sr = cv2.equalizeHist(sr)
-            gamma = 1 / 2.2
-            sr = sr * 2 # pow(value, power)
-            sg = sg * 2
-            sb = sb * 2
-            image2 = cv2.merge((sb, sg, sr))
-
-
+            print "počítá se obr:", rawIndex, "což je:", self.raw_files[rawIndex]
             print image2.min(), image2.max(), image2.mean(), image2.ptp(), (math.ceil(1.00/(len(self.raw_files)-1.00) * 100.00) / 100.00)
+
             M = cv2.getAffineTransform(self.AligmenPositions[rawIndex],self.AligmenPositions[0])
             image2 = cv2.warpAffine(image2,M,(cols,rows))
             image = cv2.addWeighted(image,1,image2, (math.ceil(1.00/(len(self.raw_files)-1.00) * 100.00) / 100.00) ,0)
-            #image = cv2.add(image,image2)
 
-        #M = cv2.getAffineTransform(pts1,pts2)
-    #    M = cv2.getAffineTransform(self.AligmenPositions[1],self.AligmenPositions[0])
-    #    print self.AligmenPositions[0], " a ", self.AligmenPositions[1]
-    #    print self.raw_files[0], " a ", self.raw_files[1]
 
-    #    rows,cols,ch = image2.shape
-    #    print rows, cols
-    #    dst = cv2.warpAffine(image2,M,(cols,rows))
-        
-    #    image = cv2.add(image,dst)
-        #dst = ccv2.absdiff(image, dst)
-
-        #plt.subplot(122),plt.imshow(image),plt.title('Output')
         plt.subplot(111),plt.imshow(image),plt.title('Output')
         image = image.astype(numpy.uint16)
-        cv2.imwrite('processed.tif',image )
+        cv2.imwrite('processed.tiff',image )
         print "Vysledek"
         print image2.min(), image2.max(), image2.mean(), image2.ptp()
         print "ukládání posledního obr"
@@ -222,9 +216,11 @@ class Aligmen(gtk.Window):
         i = 0
         for DF in DF_files:
             i = i+1
-            os.popen("dcraw -6 -c -W -t 0 "+DF+" > "+self.root+"/LDS_data/tmp/df_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
+            raw = rawpy.imread(DF)
+            rgb = raw.postprocess(gamma=(1,1), no_auto_bright=True, output_bps=16, user_flip=0, user_wb=[0,0,0,0])
+            cv2.imwrite(root+"/LDS_data/tmp/df_%02d.tiff" % i,rgb)
             print "prevod souboru:", i, " z ", len(DF_files)," -- ", DF
-        DF_files = sorted(glob.glob(self.root+"/LDS_data/tmp/df_*.ppm"))
+        DF_files = sorted(glob.glob(self.root+"/LDS_data/tmp/df_*.tiff"))
 
         image = cv2.imread(DF_files[0], cv2.IMREAD_UNCHANGED)
         image = image.astype(numpy.uint16)
@@ -238,7 +234,7 @@ class Aligmen(gtk.Window):
             image = cv2.addWeighted(image,1,image2, (math.ceil(1.00/(len(DF_files)-1.00) * 100.00) / 100.00) ,0)
 
         image = image.astype(numpy.uint16)
-        cv2.imwrite(root+"/LDS_data/tmp/df_master.ppm", image, cv2.CV_IMWRITE_PXM_BINARY)
+        cv2.imwrite(root+"/LDS_data/tmp/df_master.tiff", image, cv2.CV_IMWRITE_PXM_BINARY)
         plt.show()
 
 
@@ -251,8 +247,8 @@ class Aligmen(gtk.Window):
         image = cv2.addWeighted(image, 0, image, 0, 0)
 
         DC = False
-        if os.path.isfile(self.root+"/LDS_data/tmp/df_master.ppm"):
-            imageDC = cv2.imread(self.root+"/LDS_data/tmp/df_master.ppm", cv2.IMREAD_UNCHANGED)
+        if os.path.isfile(self.root+"/LDS_data/tmp/df_master.tiff"):
+            imageDC = cv2.imread(self.root+"/LDS_data/tmp/df_master.tiff", cv2.IMREAD_UNCHANGED)
             imageDC = image.astype(numpy.uint16)
             DC = True
         print image.shape, image.dtype
@@ -314,8 +310,8 @@ class Aligmen(gtk.Window):
         image = cv2.addWeighted(image, 0, image, 0, 0)
 
         DC = False
-        if os.path.isfile(self.root+"/LDS_data/tmp/df_master.ppm"):
-            imageDC = cv2.imread(self.root+"/LDS_data/tmp/df_master.ppm", cv2.IMREAD_UNCHANGED)
+        if os.path.isfile(self.root+"/LDS_data/tmp/df_master.tiff"):
+            imageDC = cv2.imread(self.root+"/LDS_data/tmp/df_master.tiff", cv2.IMREAD_UNCHANGED)
             imageDC = image.astype(numpy.uint16)
             DC = True
         print image.shape, image.dtype
@@ -365,20 +361,34 @@ class Aligmen(gtk.Window):
         print "ukládání výsledného obr"
         del data
 
-
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
+#########################################################################################################################
     def ProcesChoose(self, widget):
         np.save(self.root+"/LDS_data/tmp/AligmenPositions.npy",self.AligmenPositions)
         #self.DFMasterMean()
         #self.StackMean()
-        #self.StackMedian()
-        self.StackMax()
+        self.StackMedian()
+        #self.StackMax()
 
 
     def ChangeIMG(self, widget):
         self.ClickNum=0
-        if widget == self.toolbar_item05: # poslední btn
-            self.IMGB = len(self.raw_files)-1
-            self.SetImageB(self.raw_files[self.IMGB])
+        red = (255,80,80)
+
+
+        if widget == self.toolbar_item06: # 1ku 1
+            print "nastavit na celou obrazovku"
+            #self.IMGB = len(self.raw_files)-1
+            #self.SetImageB(self.raw_files[self.IMGB
+
+
+        elif widget == self.toolbar_item07: # 1ku 1
+            print "nastavit 1:1"
+            #self.IMGB = len(self.raw_files)-1
+            #self.SetImageB(self.raw_files[self.IMGB])
 
         elif widget == self.toolbar_item04: # další btn
             if self.IMGB != len(self.raw_files)-1:
@@ -398,73 +408,57 @@ class Aligmen(gtk.Window):
             self.IMGB = 0
             self.SetImageB(self.raw_files[self.IMGB])
 
+        elif widget == self.toolbar_item05: # posledni btn
+            self.IMGB = len(self.raw_files)
+            self.SetImageB(self.raw_files[self.IMGB])
+
         img = cv2.imread(self.raw_files[self.IMGB])
-        mapa = gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8)
-        w,h = mapa.get_width(), mapa.get_height()
-        pixmap,mask = mapa.render_pixmap_and_mask() # Function call
-        cm = pixmap.get_colormap()
-        red = cm.alloc_color('red')
-        gc = pixmap.new_gc(foreground=red )
-        #pixmap.draw_line(gc,0,0,w,h)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][0][0])-12, int(self.AligmenPositions[self.IMGB][0][1])-12, 24, 24, 0, 23040)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][1][0])-12, int(self.AligmenPositions[self.IMGB][1][1])-12, 24, 24, 0, 23040)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][2][0])-12, int(self.AligmenPositions[self.IMGB][2][1])-12, 24, 24, 0, 23040)
-        self.imageB.set_from_pixmap(pixmap,mask)
+
+        cv2.circle(img, (int(self.AligmenPositions[self.IMGB][0][0]), int(self.AligmenPositions[self.IMGB][0][1])), 10, red)
+        cv2.circle(img, (int(self.AligmenPositions[self.IMGB][1][0]), int(self.AligmenPositions[self.IMGB][1][1])), 10, red)
+        cv2.circle(img, (int(self.AligmenPositions[self.IMGB][2][0]), int(self.AligmenPositions[self.IMGB][2][1])), 10, red)
+
+        self.imageB.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8))
 
 
     def LableIMG(self, widget, event):
-        self.AligmenPositions[self.IMGB][self.ClickNum]=[event.x, event.y]
-        self.ClickNum= self.ClickNum + 1
-        if self.ClickNum == 3:
-            print self.AligmenPositions
-            print "Poslední bod - při dalším klknití se bude označovat od začátku"
-            self.ClickNum = 0
-            if self.IMGB == 0:
-                #mapa = self.imageA.get_pixbuf()
-                img = cv2.imread(self.raw_files[0])
-                
-                img = img/255.000000
-                img = cv2.pow(img, .85)
-                img = np.uint8(img*255.000000)
+        if event.button == 1:
+            self.AligmenPositions[self.IMGB][self.ClickNum]=[event.x, event.y]
+            self.ClickNum= self.ClickNum + 1
+            red = (255,80,80)
+            if self.ClickNum == 3:
+                print self.AligmenPositions
+                print "Poslední bod - při dalším klknití se bude označovat od začátku"
+                self.ClickNum = 0
+                if self.IMGB == 0:
+                    red = (255,80,80)
+                    img = cv2.imread(self.raw_files[0])
+                    cv2.circle(img, (int(self.AligmenPositions[0][0][0]), int(self.AligmenPositions[0][0][1])), 10, red)
+                    cv2.circle(img, (int(self.AligmenPositions[0][1][0]), int(self.AligmenPositions[0][1][1])), 10, red)
+                    cv2.circle(img, (int(self.AligmenPositions[0][2][0]), int(self.AligmenPositions[0][2][1])), 10, red)
+                    cv2.line(img, (int(self.AligmenPositions[0][0][0]),int(self.AligmenPositions[0][0][1])),(int(self.AligmenPositions[0][1][0]),int(self.AligmenPositions[0][1][1])), red)
+                    cv2.line(img, (int(self.AligmenPositions[0][1][0]),int(self.AligmenPositions[0][1][1])),(int(self.AligmenPositions[0][2][0]),int(self.AligmenPositions[0][2][1])), red)
+                    cv2.line(img, (int(self.AligmenPositions[0][2][0]),int(self.AligmenPositions[0][2][1])),(int(self.AligmenPositions[0][0][0]),int(self.AligmenPositions[0][0][1])), red)
 
-                mapa = gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8)
-                w,h = mapa.get_width(), mapa.get_height()
-                pixmap,mask = mapa.render_pixmap_and_mask() # Function call
-                cm = pixmap.get_colormap()
-                red = cm.alloc_color('red')
-                gc = pixmap.new_gc(foreground=red )
-                pixmap.draw_line(gc,int(self.AligmenPositions[0][0][0]),int(self.AligmenPositions[0][0][1]),int(self.AligmenPositions[0][1][0]),int(self.AligmenPositions[0][1][1]))
-                pixmap.draw_line(gc,int(self.AligmenPositions[0][1][0]),int(self.AligmenPositions[0][1][1]),int(self.AligmenPositions[0][2][0]),int(self.AligmenPositions[0][2][1]))
-                pixmap.draw_line(gc,int(self.AligmenPositions[0][2][0]),int(self.AligmenPositions[0][2][1]),int(self.AligmenPositions[0][0][0]),int(self.AligmenPositions[0][0][1]))
-                pixmap.draw_arc(gc, 0, int(self.AligmenPositions[0][0][0])-12, int(self.AligmenPositions[0][0][1])-12, 24, 24, 0, 23040)
-                pixmap.draw_arc(gc, 0, int(self.AligmenPositions[0][1][0])-12, int(self.AligmenPositions[0][1][1])-12, 24, 24, 0, 23040)
-                pixmap.draw_arc(gc, 0, int(self.AligmenPositions[0][2][0])-12, int(self.AligmenPositions[0][2][1])-12, 24, 24, 0, 23040)
-                self.imageA.set_from_pixmap(pixmap,mask)
+                    
+                    self.imageA.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8))
 
 
-        img = cv2.imread(self.raw_files[self.IMGB])
-        img2 = cv2.imread(self.raw_files[0])
+            img2 = cv2.imread(self.raw_files[self.IMGB])
+            cv2.circle(img2, (int(self.AligmenPositions[self.IMGB][0][0]), int(self.AligmenPositions[self.IMGB][0][1])), 10, red)
+            cv2.circle(img2, (int(self.AligmenPositions[self.IMGB][1][0]), int(self.AligmenPositions[self.IMGB][1][1])), 10, red)
+            cv2.circle(img2, (int(self.AligmenPositions[self.IMGB][2][0]), int(self.AligmenPositions[self.IMGB][2][1])), 10, red)
 
-        mapa = gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8)
-        w,h = mapa.get_width(), mapa.get_height()
-        pixmap,mask = mapa.render_pixmap_and_mask() # Function call
-        cm = pixmap.get_colormap()
-        red = cm.alloc_color('red')
-        gc = pixmap.new_gc(foreground=red )
-        #pixmap.draw_line(gc,0,0,w,h)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][0][0])-12, int(self.AligmenPositions[self.IMGB][0][1])-12, 24, 24, 0, 23040)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][1][0])-12, int(self.AligmenPositions[self.IMGB][1][1])-12, 24, 24, 0, 23040)
-        pixmap.draw_arc(gc, 0, int(self.AligmenPositions[self.IMGB][2][0])-12, int(self.AligmenPositions[self.IMGB][2][1])-12, 24, 24, 0, 23040)
-        self.imageB.set_from_pixmap(pixmap,mask)
+            self.imageB.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img2, gtk.gdk.COLORSPACE_RGB, 8))
 
 
 
-    def SetImageA(self, pathToppm):
-        img = cv2.imread(pathToppm)
+    def SetImageA(self, pathTotiff):
+        img = cv2.imread(pathTotiff)
         self.imageA.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8))
 
-    def SetImageB(self, pathToppm):
-        img = cv2.imread(pathToppm)
+    def SetImageB(self, pathTotiff):
+        img = cv2.imread(pathTotiff)
         self.imageB.set_from_pixbuf(gtk.gdk.pixbuf_new_from_array(img, gtk.gdk.COLORSPACE_RGB, 8))
 
     def  done(self):
@@ -479,16 +473,27 @@ def main():
     i=0
     for raw in raw_files:
         i = i+1
-        #os.popen("dcraw -6 -c -W -t 0 "+raw+" > "+root+"/LDS_data/tmp/si_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
-        print "převod Light obrázků:", i, " z ", len(raw_files), " -- ", raw
+        try:
+            #os.popen("dcraw -6 -c -W -t 0 "+raw+" > "+root+"/LDS_data/tmp/sXi_%02d.ppm" % i)     #dcraw -6 -c -W IMG_8588.CR2 > ppm.ppm
+            print raw
+            rawi = rawpy.imread(raw)
+            rgb = rawi.postprocess(no_auto_bright=True, output_bps=16, user_flip=0, user_wb=[127,127,127,127])
+            cv2.imwrite(root+"/LDS_data/tmp/si_%02d.tiff" % i,rgb)
+            del rawi
+            del rgb
+        except Exception, e:
+            print e
+
+        print "převod Light obrázků:", i, " z ", len(raw_files)
     Okno = Aligmen()
     Okno.root=root
-    raw_files = sorted(glob.glob(root+"/LDS_data/tmp/si_*.ppm"))
+    raw_files = sorted(glob.glob(root+"/LDS_data/tmp/si_*.tiff"))
     
-    Stacking = stacking
+    Stacking = stacking.stacking()
     Stacking.setDataPath(root)
-    Stacking.setLightFrames(sorted(glob.glob(root+"/LDS_data/tmp/si_*.ppm")))
-    Stacking.setDarkFrames(sorted(glob.glob(root+"/LDS_data/tmp/df_*.ppm")))
+    Stacking.setLightFrames(sorted(glob.glob(root+"/LDS_data/tmp/si_*.tiff")))
+    Stacking.setDarkFrames(sorted(glob.glob(root+"/LDS_data/tmp/df_*.tiff")))
+
 
     Okno.raw_files = raw_files
     Okno.spust()
