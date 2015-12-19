@@ -4,6 +4,6 @@
 
 
 if __name__ == "__main__":
-    import src.gui as gui
+    import src.LinuxDeepStacker as LinuxDeepStacker
     #from src.console import Cmain
-    gui.main()
+    LDS = LinuxDeepStacker.LinuxDeepStacker()
