@@ -3,103 +3,84 @@
 
 import sys
 import os
-from os.path import expanduser
 import sys
+import wx
+import wx.lib.agw.flatnotebook as wxfnb
+import gettext
 import time
 import datetime
-import Image
-from rawkit.raw import Raw
-import matplotlib.pyplot as plt
-import numpy as np
-try:
-    import pygtk
-    pygtk.require("2.0")
-    import gtk
-except:
-    print "Error: PyGTK and GTK 2.xx must be installed to run this application. Exiting"
-    sys.exit(1)
 
+print "hallo"
+gettext.bindtextdomain('cs_CZ', '')
+#gettext.find('cs_CZ')
+gettext.textdomain('cs_CZ')
+_ = gettext.gettext
 
-class ProjectWindow(object):
-    def __init__(self, parent, home, name):
-        self.parent = parent
-        self.pathHome = home
-        self.projectName = name 
-
-    def general(self):
-        self.window = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.window.set_title("LinuxDeepStackerData | "+self.projectName)
-        self.window.set_icon_from_file("icon.ico")
-        self.window.show_all()
-        gtk.main()
-        
-
-
-
-class LinuxDeepStacker(object):
+class Launcher:
     def __init__(self):
-        self.pojectTypeWindow = gtk.Window(gtk.WINDOW_TOPLEVEL)
-        self.pojectTypeWindow.connect("destroy", gtk.main_quit)
-        self.pojectTypeWindow.set_title("LinuxDeepStackerData | type chooser")
-        self.pojectTypeWindow.set_icon_from_file("icon.ico")
-        settings = gtk.settings_get_default()
-        settings.props.gtk_button_images = True
-        vbox = gtk.VBox(False, 8)
+        self.app = wx.App()
+        LDS = LinuxDeepStacker()
+        self.app.MainLoop()
 
-        ### Část s texteboxem jako název projektu
-        label_projectName = gtk.Label("Název:")
-        text_projectName = gtk.Entry(max=128)
-        text_projectName.set_text(str(datetime.datetime.now().isoformat()))
+class Page_project():
+    def __init__(self, parrent, notebook):
+        self.page = wx.Panel(notebook)
+        wx.StaticText(self.page, -1, _("caption"))
+        wx.TextCtrl(self.page, -1, "aa" , size = (150,-1))
+    
+    def getPage(self):
+        return self.page 
 
-        ### Část se seznamem jako typ projektu
-        label_typechoose = gtk.Label("Vyberte typ projektu:")
+class LinuxDeepStacker(wx.Frame):
+    def __init__(self, parent=None, id=-1, title=_("Linux deep stacker | ") + "Výběr projektu"):
+        wx.Frame.__init__(self, parent, id, title, size=(300, 200))
+        panel = wx.Panel(self)
+        notebook = wxfnb.FlatNotebook(panel, agwStyle= wxfnb.FNB_NO_X_BUTTON | wxfnb.FNB_NAV_BUTTONS_WHEN_NEEDED | wxfnb.FNB_SMART_TABS  )
+        sizer = wx.BoxSizer(wx.VERTICAL)
+        sizer.Add(notebook, 1, wx.ALL | wx.EXPAND, 5)
+        panel.SetSizer(sizer)
 
-        sw = gtk.ScrolledWindow()
-        sw.set_shadow_type(gtk.SHADOW_ETCHED_IN)
-        sw.set_policy(gtk.POLICY_AUTOMATIC, gtk.POLICY_AUTOMATIC)
-        # tady pak bude listwiev
+        self.page_project = Page_project(self, notebook)
+        notebook.AddPage(self.page_project.getPage(), _("Project tab"))
+        notebook.AddPage(self.CreatePage(notebook, _("caption2")), _("caption2"))
 
-        # Tlačítka s Zavřít, Nový a Opevřít
-        Hbox_potvrdit = gtk.HBox(False, 8)
-        BtnCancel = gtk.Button(stock=gtk.STOCK_CLOSE)
-        Hbox_potvrdit.pack_start(BtnCancel, True, True, 0)
-        BtnApply = gtk.Button(stock=gtk.STOCK_NEW)
-        Hbox_potvrdit.pack_start(BtnApply, True, True, 0)
-        BtnOpen = gtk.Button(stock=gtk.STOCK_OPEN)
-        Hbox_potvrdit.pack_start(BtnOpen, True, True, 0)
+        self.Show(True)
 
-        # zařazení do poliček
-        vbox.pack_start(label_projectName, False, False, 0)
-        vbox.pack_start(text_projectName, False, False, 0)
-        vbox.pack_start(label_typechoose, False, False, 0)
-        vbox.pack_start(sw, True, True, 0)
-        vbox.pack_start(Hbox_potvrdit, False, False, 0)
+    def CreatePage(self, notebook, caption):
+        '''
+        Creates a simple :class:`Panel` containing a :class:`TextCtrl`.
 
-        self.statusbar = gtk.Statusbar()
-        vbox.pack_start(self.statusbar, False, False, 0)
-        self.pojectTypeWindow.add(vbox)
-        self.pojectTypeWindow.show_all()
+        :param `notebook`: an instance of `FlatNotebook`;
+        :param `caption`: a simple label.
+        '''
 
-        BtnCancel.connect("clicked", gtk.main_quit)
-        BtnApply.connect("clicked", self.NewProject, text_projectName.get_text())
-        BtnOpen.connect("clicked", gtk.main_quit)
+        p = wx.Panel(notebook)
+        wx.StaticText(p, -1, caption, (20,20))
+        wx.TextCtrl(p, -1, "", (20,40), (150,-1))
+        return p
+
+'''        
+    def initUI(self): 
+
+        exitAction = QtGui.QAction(QtGui.QIcon('exit24.png'), 'Exit', self)
+        exitAction.setShortcut('Ctrl+Q')
+        exitAction.triggered.connect(QtGui.qApp.quit)
         
+        self.toolbar = self.addToolBar('Exit')
+        self.toolbar.addAction(exitAction)              
+        
+        qbtn = QtGui.QPushButton('Quit', self)
+        qbtn.clicked.connect(QtCore.QCoreApplication.instance().quit)
+        qbtn.resize(qbtn.sizeHint())
+        qbtn.move(50, 50)  
 
-    def main(self):
-        gtk.main()
+        btn = QtGui.QPushButton('Button', self)
+        btn.setToolTip('This is a <b>QPushButton</b> widget')
+        btn.resize(btn.sizeHint())
+        btn.move(200, 50)      
+        
+        self.setGeometry(300, 300, 250, 150)
+        self.setWindowTitle('Quit button')    
+        self.show()
 
-    def NewProject(self, widget, *data):
-        print widget, data
-        try:
-            home = str(expanduser("~"))+"/.LinuxDeepStacker/"+str(data[0]+str("/"))
-        except Exception, e:
-            print "Soubor již existuje"
-        os.makedirs(home)
-        self.openGeneralWin(data[0], home)
-
-    def openGeneralWin(self, projectName, ProjectHome):
-        print projectName, ProjectHome
-       # os.chdir(ProjectHome)
-        self.pojectTypeWindow.destroy() 
-        self.ProjectWindow = ProjectWindow(self, ProjectHome, projectName)
-        self.ProjectWindow.general()       
+'''        
