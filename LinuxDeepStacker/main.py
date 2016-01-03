@@ -14,7 +14,22 @@ import configparser
 import numpy as np
 from ui import LoadProject
 from ui import mwdg
-#from work import *
+import logging
+
+logger = logging.getLogger('main.py')
+logger.setLevel(logging.DEBUG)
+# create console handler and set level to debug
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+# create formatter
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+
+# add formatter to ch
+ch.setFormatter(formatter)
+
+# add ch to logger
+logger.addHandler(ch)
 
 gettext.bindtextdomain('cs_CZ')
 gettext.textdomain('cs_CZ')
@@ -27,10 +42,12 @@ _ = gettext.gettext
 ##############
 
 class ProjectClass():
-    def __init__(self, arg):
+    def __init__(self, arg, parent):
+        logger.info("ProjectClass __init__")
         self.config = configparser.ConfigParser()
         self.loaded = False
         self.arg = arg
+        self.parent = parent
         self.ProjectName = None
         self.ProjectAuthorName = None
         self.ProjectAuthorEmail = None
@@ -38,7 +55,7 @@ class ProjectClass():
         self.ProjectAuthorWeb = None
         self.ProjectAuthorNotes = None
         self.ProjectFile = None
-        self.ProjectFolder = None
+        #self.ProjectFolder = None
         self.ProjectCreationDate = None
         self.ProjectLastOpen = None
         self.Project_colour = None
@@ -50,7 +67,8 @@ class ProjectClass():
             if ".lds" in x.lower() or ".ldsa" in x.lower():
                 print "vstupni parametr obsahuje nejaky muj soubor"
                 self.ProjectLoadType = 1
-                self.load(x)
+                #self.load(x)
+                self.ProjectFile = x
 
     def new(self):
         self.ProjectCreationDate = datetime.datetime.utcnow()
@@ -59,11 +77,12 @@ class ProjectClass():
         self.FileConfig.attrs.modify("ProjectName", self.ProjectName)
         self.FileConfig.attrs.modify("ProjectCreationDate", str(self.ProjectCreationDate))
         self.FileConfig.attrs.modify("ProjectLastOpen", [str(self.ProjectCreationDate)])
-        self.FileConfig.attrs.modify("test", [10,23,023,034])
+        self.FileConfig.attrs.modify("Chanels", ['R', 'G', 'B'])
         self.File.flush()
+        self.parent.LDS.Update()
 
     def load(self, path):
-        print _("Loading varibales from %s")%(path)
+        logger.info(_("ProjectClass load, loading variables from%s")%(path))
         self.File = h5py.File(path, 'r+')
         self.FileConfig = self.File['config']
         self.ProjectFile = path
@@ -71,16 +90,21 @@ class ProjectClass():
         self.ProjectCreationDate = self.FileConfig.attrs['ProjectCreationDate']
         self.ProjectLastOpen = self.FileConfig.attrs['ProjectLastOpen']
         self.FileConfig.attrs['ProjectLastOpen'] = np.append(self.ProjectLastOpen, str(datetime.datetime.utcnow()))
+        self.parent.LDS.Update()
 
     def save(self):
-        print _("Saving varibales")
+        logger.info("ProjectClass save")
 
     def save_as(self):
-        print _("Saving as varibales")
+        logger.info("ProjectClass save_as")
 
     def OnClose(self):
-        self.File.flush()
-        self.File.close()
+        logger.info("ProjectClass OnClose")
+        try:
+            self.File.flush()
+            self.File.close()
+        except Exception, e:
+            print "Hi"
 
 ##########################################################################################################
 ##########################################################################################################
@@ -89,6 +113,7 @@ class ProjectClass():
 
 class Page_project():
     def __init__(self, parrent, notebook):
+        logger.info("ProjectPage __init__")
         self.parent = parrent
         self.page = wx.Panel(notebook)
 
@@ -99,16 +124,20 @@ class Page_project():
         self.RightPanelSizer = wx.GridBagSizer(2, 2)
         
         toolbar = wx.ToolBar(self.rightPanel)
-        toolbar.AddLabelTool(wx.ID_ANY, 'aoh', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
-        toolbar.AddLabelTool(wx.ID_ANY, 'aoh', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
-        toolbar.AddLabelTool(wx.ID_ANY, 'oee', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
+        print wx.ID_EXIT
+        toolbar.AddLabelTool(wx.ID_ANY, '&Import file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Add-32.png"))
+        toolbar.AddLabelTool(wx.ID_ANY, '&Remove file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Remove-32.png"))
         toolbar.Realize()
 
         self.list_ctrl = wx.ListCtrl(self.rightPanel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
-        self.list_ctrl.InsertColumn(0, 'Subject')
-        self.list_ctrl.InsertColumn(1, 'Due')
-        self.list_ctrl.InsertColumn(2, 'Location')
-
+        self.list_ctrl.InsertColumn(0, 'ID', width = 25)
+        self.list_ctrl.InsertColumn(1, 'Status')
+        self.list_ctrl.InsertColumn(2, 'Type')
+        self.list_ctrl.InsertColumn(3, 'Time')
+        self.list_ctrl.InsertColumn(4, 'Star')
+        self.list_ctrl.InsertColumn(6, 'Position')
+        self.list_ctrl.InsertColumn(7, 'Source file location')
+        self.list_ctrl.InsertColumn(8, 'Status')
 
         self.RightPanelSizer.Add(toolbar, (0,0), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
         self.RightPanelSizer.Add(self.list_ctrl, (1,0), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
@@ -127,11 +156,18 @@ class Page_project():
         self.BBProjectName = wx.BitmapButton(self.leftPanel, -1, bitmap=wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-Accessories-Text-Editor-32.png"))
         self.TcProjectName = wx.TextCtrl(self.leftPanel, -1)
         self.TcProjectName.SetEditable(False)
+        LabelProjectChanels = wx.StaticText(self.leftPanel, -1, _("  Image chanels: "))
+        self.BBProjectChanels = wx.BitmapButton(self.leftPanel, -1, bitmap=wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-Accessories-Text-Editor-32.png"))
+        self.TcProjectChanels = wx.TextCtrl(self.leftPanel, -1)
+        self.TcProjectChanels.SetEditable(False)
 
         self.LeftPanelSizer.Add(self.HeaderImage, (0,0), span=(1, 4))
         self.LeftPanelSizer.Add(LabelProjectName, (1,0))
         self.LeftPanelSizer.Add(self.BBProjectName, (1,1))
-        self.LeftPanelSizer.Add(self.TcProjectName, (1,2), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
+        self.LeftPanelSizer.Add(self.TcProjectName, (1,2), span=(1, 2) , flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
+        self.LeftPanelSizer.Add(LabelProjectChanels, (3,0))
+        self.LeftPanelSizer.Add(self.BBProjectChanels, (3,1))
+        self.LeftPanelSizer.Add(self.TcProjectChanels, (3,2), span=(1, 2) , flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
 
         #self.RightPanelSizer.AddGrowableCol(2,3)
         self.leftPanel.SetSizer(self.LeftPanelSizer)
@@ -141,12 +177,15 @@ class Page_project():
         sizer.Add(self.splitter, 1, wx.EXPAND)
         self.page.SetSizer(sizer)
 
-        self.Update()
 
     def Update(self):
-        self.TcProjectName.SetValue(self.parent.prj.ProjectName)
+        logger.info("ProjectPage Update")
+        print "Aktualizace panelu 'project'"
+        self.TcProjectName.SetValue(self.parent.prj.FileConfig.attrs['ProjectName'])
+        self.TcProjectChanels.SetValue(str(len(self.parent.prj.FileConfig.attrs['Chanels'])) + " " + str(self.parent.prj.FileConfig.attrs['Chanels']))
     
     def getPage(self):
+        logger.info("ProjectPage getPage")
         return self.page 
 
 #########################################################################################################
@@ -156,6 +195,7 @@ class Page_project():
 
 class LinuxDeepStacker(wx.Frame):
     def __init__(self, parent=None, id=-1, title=_("Linux deep stacker | ") + "Err.: " + _("Není otevřen žádný projekt"), prj = None, app = None):
+        logger.info("LinuxDeepStacker __init__")
         self.app = app
         self.prj = prj
         self.parent = parent
@@ -175,19 +215,24 @@ class LinuxDeepStacker(wx.Frame):
         self.Show(True)
         self.Centre()
 
-        if self.prj.ProjectName == None:
-            LoadProject.LoadProject(self, prj = prj)
+        LoadProject.LoadProject(self, prj = prj)
 
     def CreatePage(self, notebook, caption):
+        logger.info("LinuxDeepStacker CreatePage")
         p = wx.Panel(notebook)
         wx.StaticText(p, -1, caption, (20,20))
         wx.TextCtrl(p, -1, "", (20,40), (150,-1))
         return p
 
     def OnClose(self, widget=None):
-        print ('Ukončuji program z události tlačítka')
+        logger.info("LinuxDeepStacker OnClose")
         self.prj.OnClose()
         self.Destroy()
+
+    def Update(self):
+        logger.info("LinuxDeepStacker Update")
+        self.SetTitle(_("Linux deep stacker | ") + self.prj.FileConfig.attrs['ProjectName'])
+        self.page_project.Update()
 
 ##########################################################################################################
 ##########################################################################################################
@@ -196,6 +241,6 @@ class main:
     def __init__(self, argv):
         self.argv = argv
         self.app = wx.App()
-        self.prj = ProjectClass(self.argv)                              # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
+        self.prj = ProjectClass(arg = self.argv, parent = self)                              # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
         self.LDS = LinuxDeepStacker(app=self.app, prj = self.prj)       # Stará se o UI
         self.app.MainLoop()

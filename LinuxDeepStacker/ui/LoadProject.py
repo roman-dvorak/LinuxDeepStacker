@@ -10,7 +10,16 @@ import time
 import datetime
 import h5py
 import configparser
+import logging
 
+logger = logging.getLogger('LPrj.py')
+logger.setLevel(logging.DEBUG)
+ch = logging.StreamHandler()
+ch.setLevel(logging.DEBUG)
+
+formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+ch.setFormatter(formatter)
+logger.addHandler(ch)
 
 gettext.bindtextdomain('cs_CZ')
 gettext.textdomain('cs_CZ')
@@ -18,10 +27,12 @@ _ = gettext.gettext
 
 class LoadProject(wx.Frame):
     def __init__(self, parent=None, id=-1, title=_("Linux deep stacker | ") + _("Výběr projektu"), prj = None):
+        logger.info("LoadProject __init__ function")
         super(LoadProject, self).__init__(parent, title=title, size=(557, 410), style= wx.CLOSE_BOX | wx.FRAME_FLOAT_ON_PARENT)
         self.parent = parent
         self.prj = prj
         self.status = False
+
         panel = wx.Panel(self)
         sizer = wx.GridBagSizer(1, 1)
 
@@ -64,18 +75,23 @@ class LoadProject(wx.Frame):
 
         #sizer.Add(HeaderImage, pos=(3, 4), flag=wx.RIGHT|wx.BOTTOM, border=5)
         panel.SetSizer(sizer)
-
         self.MakeModal(True)
         self.Show(True)
         self.Centre()
 
+        if self.prj.ProjectFile != None:
+            self.OnLoadProject()
+
+
     def OnCloseWindow(self, widget=None):
+        logger.info("OnCloseWindow")
         self.Close()
         self.parent.Close()
         self.status = False
         self.MakeModal(False)
 
     def OnCreateProject(self, widget=None):
+        logger.info("OnCreateProject")
         dlg = wx.FileDialog(
             self, message="Vyber projektovy soubor", wildcard = "ProjectFile (*.lds,*.ldsa)|*.lds;*.ldsa",
             style=wx.SAVE | wx.OVERWRITE_PROMPT | wx.CHANGE_DIR)
@@ -83,8 +99,6 @@ class LoadProject(wx.Frame):
             path = dlg.GetPath()
             if ".lds" not in path.lower():
                 path = path+".lds"
-            print "You chose the following file(s):",
-            print path
             self.TcLocation.SetEditable(False)
             self.TcLocation.SetValue(path)
             self.TcProjectName.SetEditable(True)
@@ -95,14 +109,13 @@ class LoadProject(wx.Frame):
         dlg.Destroy()
         
     def OnOpenProject(self, widget=None):
+        logger.info("OnOpenProject")
         dlg = wx.FileDialog(
             self, message="Vyber projektovy soubor", wildcard = "ProjectFile (*.lds,*.ldsa)|*.lds;*.ldsa",
             style=wx.OPEN | wx.CHANGE_DIR)
         if dlg.ShowModal() == wx.ID_OK:
             self.prj.ProjectLoadType = 2
             path = dlg.GetPath()
-            print "You chose the following file(s):",
-            print path
             self.TcLocation.SetEditable(False)
             self.TcLocation.SetValue(path)
             self.TcProjectName.SetEditable(False)
@@ -114,17 +127,27 @@ class LoadProject(wx.Frame):
         self.Destroy()
 
     def OnLoadProject(self, widget=None):
+        logger.info("OnLoadProject")
         if self.prj.ProjectLoadType != -1:
-            self.prj.ProjectFile = self.TcLocation.GetValue()
-            self.prj.ProjectName = self.TcProjectName.GetValue()
+            if self.prj.ProjectLoadType == 4:
+                print "novy soubor skrz Gui"
+                self.prj.ProjectFile = self.TcLocation.GetValue()
+                self.prj.ProjectName = self.TcProjectName.GetValue()
+                self.prj.new()
+            elif self.prj.ProjectLoadType == 1:
+                logger.debug("loading project from comand line parametr")
+                self.prj.load(path = self.prj.ProjectFile)
+            else:
+                self.prj.ProjectFile = self.TcLocation.GetValue()
+                self.prj.ProjectName = self.TcProjectName.GetValue()
+                self.prj.load(path = self.prj.ProjectFile)
             self.MakeModal(False)
             self.status = True
             self.Destroy()
-            if self.prj.ProjectLoadType == 4:
-                self.prj.new()
             return self.status
         
     def UpdateUI(self, widget=None):
+        logger.info("UpdateUI")
         print "Update load screen"
 
     def status(self):
