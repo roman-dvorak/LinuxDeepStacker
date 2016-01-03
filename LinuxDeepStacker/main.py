@@ -10,6 +10,7 @@ import gettext
 import time
 import datetime
 import h5py
+import configparser
 
 print "hallo"
 gettext.bindtextdomain('cs_CZ', '')
@@ -23,29 +24,49 @@ _ = gettext.gettext
 
 class ProjectClass():
     def __init__(self, arg):
+        self.config = configparser.ConfigParser()
         self.loaded = False
         self.arg = arg
         self.ProjectName = None
+        self.ProjectAuthorName = None
+        self.ProjectAuthorEmail = None
+        self.ProjectAuthorAdress = None
+        self.ProjectAuthorWeb = None
+        self.ProjectAuthorNotes = None
         self.ProjectFile = None
         self.ProjectFolder = None
         self.ProjectCreationDate = None
-        self.ProjectLastUpdate = None
         self.ProjectLastOpen = None
         self.Project_colour = None
+        self.ProjectLoadType = -1        # 0 - from system, 1-trought terminal, 2- open trought gui, 3 - open from last, 4 - new project
         self.Propelties = {}
         self.File = None
+        FileConfig = None
         for x in arg:
             if ".lds" in x.lower() or ".ldsa" in x.lower():
                 print "vstupni parametr obsahuje nejaky muj soubor"
+                self.ProjectLoadType = 1
                 self.load(x)
 
     def new(self):
+        self.ProjectCreationDate = str(datetime.datetime.utcnow())
         self.File = h5py.File(self.ProjectFile)
-        self.File.create("PrjName", self.ProjectName)
+        self.FileConfig = self.File.require_dataset("config", (10,2), maxshape=(None, 2), dtype = h5py.special_dtype(vlen=unicode))
+        self.FileConfig.attrs.modify("ProjectName", self.ProjectName)
+        self.FileConfig.attrs.modify("ProjectCreationDate", self.ProjectCreationDate)
+        self.FileConfig.attrs.modify("ProjectLastOpen", self.ProjectCreationDate)
+        self.FileConfig.attrs.modify("test", [10,23,023,034])
         self.File.flush()
+        
 
     def load(self, path):
         print _("Loading varibales from %s")%(path)
+        self.File = h5py.File(path)
+        self.FileConfig = self.File['config']
+        self.ProjectFile = path
+        self.ProjectName = self.FileConfig.attrs['ProjectName']
+        self.ProjectCreationDate = self.FileConfig.attrs['ProjectCreationDate']
+        self.ProjectLastOpen = self.FileConfig.attrs['ProjectLastOpen']
 
     def save(self):
         print _("Saving varibales")
@@ -131,8 +152,7 @@ class LoadProject(wx.Frame):
             self.TcProjectName.SetValue(_("Projekt bez názvu z %s.") %str(datetime.datetime.utcnow()))
             self.prj.ProjectFile = self.TcLocation.GetValue()
             self.prj.ProjectName = self.TcProjectName.GetValue()
-            self.prj.load(path = path)
-            self.prj.new()
+            self.prj.ProjectLoadType = 4
         dlg.Destroy()
         
 
@@ -157,6 +177,8 @@ class LoadProject(wx.Frame):
         self.MakeModal(False)
         self.status = True
         self.Destroy()
+        if self.prj.ProjectLoadType == 4:
+            self.prj.new()
         return self.status
         
     def UpdateUI(self, widget=None):
