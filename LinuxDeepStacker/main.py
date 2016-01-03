@@ -13,6 +13,7 @@ import h5py
 import configparser
 import numpy as np
 from ui import LoadProject
+from ui import mwdg
 #from work import *
 
 gettext.bindtextdomain('cs_CZ')
@@ -84,7 +85,7 @@ class ProjectClass():
 ##########################################################################################################
 ##########################################################################################################
 ###### První panel hl. okna
-#############
+#############  AndFit
 
 class Page_project():
     def __init__(self, parrent, notebook):
@@ -95,30 +96,55 @@ class Page_project():
         self.splitter.SetMinimumPaneSize(10)
 
         self.rightPanel = wx.Panel (self.splitter)
-        self.rightPanel.SetBackgroundColour(wx.BLUE)
+        self.RightPanelSizer = wx.GridBagSizer(2, 2)
         
-        panel = wx.Panel(self.rightPanel, -1)
-        panel.SetBackgroundColour('#4f5049')
-        vbox = wx.BoxSizer(wx.VERTICAL)
+        toolbar = wx.ToolBar(self.rightPanel)
+        toolbar.AddLabelTool(wx.ID_ANY, 'aoh', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
+        toolbar.AddLabelTool(wx.ID_ANY, 'aoh', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
+        toolbar.AddLabelTool(wx.ID_ANY, 'oee', wx.Bitmap("LinuxDeepStacker/media/icon.png"))
+        toolbar.Realize()
 
-        midPan = wx.Panel(panel, -1)
-        midPan.SetBackgroundColour('#ededed')
+        self.list_ctrl = wx.ListCtrl(self.rightPanel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
+        self.list_ctrl.InsertColumn(0, 'Subject')
+        self.list_ctrl.InsertColumn(1, 'Due')
+        self.list_ctrl.InsertColumn(2, 'Location')
 
-        vbox.Add(midPan, 1, wx.EXPAND | wx.ALL, 20)
+
+        self.RightPanelSizer.Add(toolbar, (0,0), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
+        self.RightPanelSizer.Add(self.list_ctrl, (1,0), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
+
+        self.RightPanelSizer.AddGrowableCol(0,3)
+        self.RightPanelSizer.AddGrowableRow(1,3)
+        self.rightPanel.SetSizer(self.RightPanelSizer)
 
     ########
         ## Left panel
     ########
         self.leftPanel = wx.Panel (self.splitter)
-        LeftPanel_vbox = wx.BoxSizer(wx.VERTICAL)
+        self.LeftPanelSizer = wx.GridBagSizer(2, 2)
         self.HeaderImage = wx.StaticBitmap(self.leftPanel, bitmap=wx.Bitmap("LinuxDeepStacker/media/headerA.png"))
-        LeftPanel_vbox.Add(self.HeaderImage)
-        LeftPanel_vbox.Add(wx.StaticText(self.leftPanel, -1, _("Project name: %s") % str(self.parent.prj.ProjectName), (10,193)))
+        LabelProjectName = wx.StaticText(self.leftPanel, -1, _("  Project name: "))
+        self.BBProjectName = wx.BitmapButton(self.leftPanel, -1, bitmap=wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-Accessories-Text-Editor-32.png"))
+        self.TcProjectName = wx.TextCtrl(self.leftPanel, -1)
+        self.TcProjectName.SetEditable(False)
+
+        self.LeftPanelSizer.Add(self.HeaderImage, (0,0), span=(1, 4))
+        self.LeftPanelSizer.Add(LabelProjectName, (1,0))
+        self.LeftPanelSizer.Add(self.BBProjectName, (1,1))
+        self.LeftPanelSizer.Add(self.TcProjectName, (1,2), flag = wx.EXPAND |wx.TOP | wx.LEFT | wx.BOTTOM)
+
+        #self.RightPanelSizer.AddGrowableCol(2,3)
+        self.leftPanel.SetSizer(self.LeftPanelSizer)
 
         self.splitter.SplitVertically (self.leftPanel, self.rightPanel, 315)
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(self.splitter, 1, wx.EXPAND)
         self.page.SetSizer(sizer)
+
+        self.Update()
+
+    def Update(self):
+        self.TcProjectName.SetValue(self.parent.prj.ProjectName)
     
     def getPage(self):
         return self.page 
@@ -136,7 +162,7 @@ class LinuxDeepStacker(wx.Frame):
         wx.Frame.__init__(self, self.parent, id, title, size=(800, 500))
         self.Bind(wx.EVT_CLOSE, self.OnClose)
         panel = wx.Panel(self)
-        notebook = wxfnb.FlatNotebook(panel, agwStyle= wxfnb.FNB_NO_X_BUTTON | wxfnb.FNB_NAV_BUTTONS_WHEN_NEEDED | wxfnb.FNB_SMART_TABS  )
+        notebook = wxfnb.FlatNotebook(panel, agwStyle= wxfnb.FNB_NO_X_BUTTON | wxfnb.FNB_NAV_BUTTONS_WHEN_NEEDED | wxfnb.FNB_SMART_TABS )
         sizer = wx.BoxSizer(wx.VERTICAL)
         sizer.Add(notebook, 1, wx.ALL | wx.EXPAND, 5)
         panel.SetSizer(sizer)
@@ -145,6 +171,7 @@ class LinuxDeepStacker(wx.Frame):
         notebook.AddPage(self.page_project.getPage(), _("Project tab"))
         notebook.AddPage(self.CreatePage(notebook, _("caption2")), _("caption2"))
 
+        self.statusbar = self.CreateStatusBar(4)
         self.Show(True)
         self.Centre()
 
