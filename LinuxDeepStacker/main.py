@@ -15,20 +15,16 @@ import numpy as np
 from ui import LoadProject
 from ui import mwdg
 import logging
+import threading
+from work import threads
+import Queue
 
 logger = logging.getLogger('main.py')
 logger.setLevel(logging.DEBUG)
-# create console handler and set level to debug
 ch = logging.StreamHandler()
 ch.setLevel(logging.DEBUG)
-
-# create formatter
 formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-
-# add formatter to ch
 ch.setFormatter(formatter)
-
-# add ch to logger
 logger.addHandler(ch)
 
 gettext.bindtextdomain('cs_CZ')
@@ -67,7 +63,6 @@ class ProjectClass():
             if ".lds" in x.lower() or ".ldsa" in x.lower():
                 print "vstupni parametr obsahuje nejaky muj soubor"
                 self.ProjectLoadType = 1
-                #self.load(x)
                 self.ProjectFile = x
 
     def new(self):
@@ -78,6 +73,10 @@ class ProjectClass():
         self.FileConfig.attrs.modify("ProjectCreationDate", str(self.ProjectCreationDate))
         self.FileConfig.attrs.modify("ProjectLastOpen", [str(self.ProjectCreationDate)])
         self.FileConfig.attrs.modify("Chanels", ['R', 'G', 'B'])
+        self.File.create_group("Light")
+        self.File.create_group("Dark")
+        self.File.create_group("Flat")
+        self.File.create_group("Bias")
         self.File.flush()
         self.parent.LDS.Update()
 
@@ -90,7 +89,11 @@ class ProjectClass():
         self.ProjectCreationDate = self.FileConfig.attrs['ProjectCreationDate']
         self.ProjectLastOpen = self.FileConfig.attrs['ProjectLastOpen']
         self.FileConfig.attrs['ProjectLastOpen'] = np.append(self.ProjectLastOpen, str(datetime.datetime.utcnow()))
-        self.parent.LDS.Update()
+        print "bla"
+        try:
+            self.parent.LDS.Update()
+        except Exception, e:
+            logger.error(str(e))
 
     def save(self):
         logger.info("ProjectClass save")
@@ -104,7 +107,19 @@ class ProjectClass():
             self.File.flush()
             self.File.close()
         except Exception, e:
-            print "Hi"
+            logger.error(str(e))
+
+    def importMultipleFiles(self, files = []):
+        if len(files) == 1:
+            self.importSingleFile(file = files[0])
+        else:
+            for x in files:
+                self.importSingleFile(file = x)
+
+    def importSingleFile(self, file=None, type=None):
+        logger.info("Importing file: %s as type %s" %(file, str(type)))
+        self.File['Light'].create_dataset("L"+str(10+1), (500,500,3))
+
 
 ##########################################################################################################
 ##########################################################################################################
@@ -125,16 +140,17 @@ class Page_project():
         
         toolbar = wx.ToolBar(self.rightPanel)
         print wx.ID_EXIT
-        toolbar.AddLabelTool(wx.ID_ANY, '&Import file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Add-32.png"))
-        toolbar.AddLabelTool(wx.ID_ANY, '&Remove file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Remove-32.png"))
+        LT_FileAdd = toolbar.AddLabelTool(wx.ID_ANY, '&Import file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Add-32.png"))
+        LT_FileRemove = toolbar.AddLabelTool(wx.ID_ANY, '&Remove file', wx.Bitmap("LinuxDeepStacker/media/icons/Gnome-List-Remove-32.png"))
         toolbar.Realize()
 
         self.list_ctrl = wx.ListCtrl(self.rightPanel, style=wx.LC_REPORT | wx.BORDER_SUNKEN)
         self.list_ctrl.InsertColumn(0, 'ID', width = 25)
         self.list_ctrl.InsertColumn(1, 'Status')
         self.list_ctrl.InsertColumn(2, 'Type')
-        self.list_ctrl.InsertColumn(3, 'Time')
-        self.list_ctrl.InsertColumn(4, 'Star')
+        self.list_ctrl.InsertColumn(3, 'Exposition')
+        self.list_ctrl.InsertColumn(4, 'Time')
+        self.list_ctrl.InsertColumn(5, 'Stars')
         self.list_ctrl.InsertColumn(6, 'Position')
         self.list_ctrl.InsertColumn(7, 'Source file location')
         self.list_ctrl.InsertColumn(8, 'Status')
@@ -145,6 +161,9 @@ class Page_project():
         self.RightPanelSizer.AddGrowableCol(0,3)
         self.RightPanelSizer.AddGrowableRow(1,3)
         self.rightPanel.SetSizer(self.RightPanelSizer)
+
+        self.parent.Bind(wx.EVT_TOOL, self.OnAddFile, LT_FileAdd)
+        self.parent.Bind(wx.EVT_TOOL, self.OnRemoveFile, LT_FileRemove)
 
     ########
         ## Left panel
@@ -178,12 +197,26 @@ class Page_project():
         self.page.SetSizer(sizer)
 
 
+    def OnAddFile(self, widget=None):
+        #logger.info("OnOpenProject --- Nemam zdroj")
+        dlg = wx.FileDialog(self.parent, message="Vyber datovy soubor(y)", style= wx.OPEN | wx.CHANGE_DIR | wx.FD_MULTIPLE)
+        if dlg.ShowModal() == wx.ID_OK:
+            self.parent.prj.importMultipleFiles(files=dlg.GetPaths());
+        dlg.Destroy()
+
+
+    def OnRemoveFile(self, widget=None):
+        pass
+
     def Update(self):
         logger.info("ProjectPage Update")
         print "Aktualizace panelu 'project'"
         self.TcProjectName.SetValue(self.parent.prj.FileConfig.attrs['ProjectName'])
         self.TcProjectChanels.SetValue(str(len(self.parent.prj.FileConfig.attrs['Chanels'])) + " " + str(self.parent.prj.FileConfig.attrs['Chanels']))
     
+    def UpdateFileList(self):
+        logger.info("ProjectPage Update file list")
+
     def getPage(self):
         logger.info("ProjectPage getPage")
         return self.page 
@@ -239,8 +272,20 @@ class LinuxDeepStacker(wx.Frame):
 
 class main:
     def __init__(self, argv):
+        self.classes = []
+        self.thrdI = Queue.Queue()
+        self.thrdO = Queue.Queue()
+
+        self.threads = [threads.Importer(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes),
+                        threads.UiUpdater(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes),
+                        threads.Processer(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes) ]
+
+        for thread in self.threads:
+            thread.start()
+
         self.argv = argv
         self.app = wx.App()
-        self.prj = ProjectClass(arg = self.argv, parent = self)                              # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
+        self.prj = ProjectClass(arg = self.argv, parent = self)         # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
         self.LDS = LinuxDeepStacker(app=self.app, prj = self.prj)       # Stará se o UI
+        self.classes = [self.argv, self.thrdI, self.thrdO, self.app, self.prj, self.LDS, self.threads]
         self.app.MainLoop()

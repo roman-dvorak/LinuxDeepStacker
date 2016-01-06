@@ -80,7 +80,7 @@ class LoadProject(wx.Frame):
         self.Centre()
 
         if self.prj.ProjectFile != None:
-            self.OnLoadProject()
+            self.OnOpenProject(source = self.prj.ProjectLoadType, dialog=False)
 
 
     def OnCloseWindow(self, widget=None):
@@ -108,23 +108,37 @@ class LoadProject(wx.Frame):
             self.prj.ProjectLoadType = 4
         dlg.Destroy()
         
-    def OnOpenProject(self, widget=None):
-        logger.info("OnOpenProject")
-        dlg = wx.FileDialog(
-            self, message="Vyber projektovy soubor", wildcard = "ProjectFile (*.lds,*.ldsa)|*.lds;*.ldsa",
-            style=wx.OPEN | wx.CHANGE_DIR)
-        if dlg.ShowModal() == wx.ID_OK:
-            self.prj.ProjectLoadType = 2
-            path = dlg.GetPath()
+    def OnOpenProject(self, widget=None, source=None, dialog=True):
+        if dialog:
+            logger.info("OnOpenProject --- Nemám zdroj")
+            dlg = wx.FileDialog(
+                self, message="Vyber projektovy soubor", wildcard = "ProjectFile (*.lds,*.ldsa)|*.lds;*.ldsa",
+                style=wx.OPEN | wx.CHANGE_DIR)
+            if dlg.ShowModal() == wx.ID_OK:
+                self.prj.ProjectLoadType = 2
+                path = dlg.GetPath()
+                self.TcLocation.SetEditable(False)
+                self.TcLocation.SetValue(path)
+                print path
+                self.TcProjectName.SetEditable(False)
+                self.TcProjectName.SetValue("Uneable to read project name, try continue")
+                self.prj.load(path = path)
+                self.MakeModal(False)
+                self.status = True
+                self.Destroy()
+            dlg.Destroy()
+        else:
+            logger.info("OnOpenProject --- Znám zdroj %s"%self.prj.ProjectFile)
+            self.prj.ProjectLoadType = source
             self.TcLocation.SetEditable(False)
-            self.TcLocation.SetValue(path)
+            self.TcLocation.SetValue(self.prj.ProjectFile)
+            print self.prj.ProjectFile
             self.TcProjectName.SetEditable(False)
             self.TcProjectName.SetValue("Uneable to read project name, try continue")
-            self.prj.load(path = path)
-        dlg.Destroy()
-        self.MakeModal(False)
-        self.status = True
-        self.Destroy()
+            self.prj.load(path = self.prj.ProjectFile)
+            self.MakeModal(False)
+            self.status = True
+            self.Destroy()
 
     def OnLoadProject(self, widget=None):
         logger.info("OnLoadProject")
