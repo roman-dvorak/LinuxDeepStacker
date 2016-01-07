@@ -17,6 +17,8 @@ from ui import mwdg
 import logging
 import threading
 from work import threads
+import threading
+
 import Queue
 
 logger = logging.getLogger('main.py')
@@ -38,7 +40,8 @@ _ = gettext.gettext
 ##############
 
 class ProjectClass():
-    def __init__(self, arg, parent):
+    def __init__(self, arg, parent, thread=None):
+        self.threadI, self.threadO = thread
         logger.info("ProjectClass __init__")
         self.config = configparser.ConfigParser()
         self.loaded = False
@@ -119,6 +122,8 @@ class ProjectClass():
     def importSingleFile(self, file=None, type=None):
         logger.info("Importing file: %s as type %s" %(file, str(type)))
         self.File['Light'].create_dataset("L"+str(10+1), (500,500,3))
+        self.threadI.put(('importSingleFile', file, type))
+
 
 
 ##########################################################################################################
@@ -227,7 +232,7 @@ class Page_project():
 #############
 
 class LinuxDeepStacker(wx.Frame):
-    def __init__(self, parent=None, id=-1, title=_("Linux deep stacker | ") + "Err.: " + _("Není otevřen žádný projekt"), prj = None, app = None):
+    def __init__(self, parent=None, id=-1, title=_("Linux deep stacker | ") + "Err.: " + _("Není otevřen žádný projekt"), prj = None, app = None, thread=None):
         logger.info("LinuxDeepStacker __init__")
         self.app = app
         self.prj = prj
@@ -276,16 +281,18 @@ class main:
         self.thrdI = Queue.Queue()
         self.thrdO = Queue.Queue()
 
-        self.threads = [threads.Importer(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes),
-                        threads.UiUpdater(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes),
-                        threads.Processer(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes) ]
+        #self.thread = threads.Worker(input_q=self.thrdI, output_q=self.thrdO, classes=self.classes)
+        self.threads = []
 
-        for thread in self.threads:
-            thread.start()
+        for i in range(4):
+            t = threading.Thread(target=threads.main, args=())
+            t.daemon = True
+            self.threads.append(t)
+            t.start()
 
         self.argv = argv
         self.app = wx.App()
-        self.prj = ProjectClass(arg = self.argv, parent = self)         # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
-        self.LDS = LinuxDeepStacker(app=self.app, prj = self.prj)       # Stará se o UI
-        self.classes = [self.argv, self.thrdI, self.thrdO, self.app, self.prj, self.LDS, self.threads]
+        self.prj = ProjectClass(arg = self.argv, parent = self, thread=(self.thrdI, self.thrdO))         # Stará se o projekt a práci s ním Otevirani, Cteni , Ukladaní, atd....
+        self.LDS = LinuxDeepStacker(app=self.app, prj = self.prj, thread=(self.thrdI, self.thrdO))       # Stará se o UI
+        self.classes = [self.argv, self.thrdI, self.thrdO, self.app, self.prj, self.LDS]
         self.app.MainLoop()

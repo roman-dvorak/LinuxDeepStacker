@@ -29,8 +29,6 @@ gettext.textdomain('cs_CZ')
 _ = gettext.gettext
 
 
-
-
 class Importer(threading.Thread):
     def __init__(self, input_q, output_q, classes):
         super(Importer, self).__init__()
@@ -88,3 +86,10 @@ class Processer(threading.Thread):
     def join(self, timeout=None):
         self.stoprequest.set()
         super(Processer, self).join(timeout)
+
+
+def main(arg):
+    while True:
+        item = q.get()
+        print(item)
+        q.task_done()
